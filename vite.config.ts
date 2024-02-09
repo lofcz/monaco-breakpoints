@@ -25,6 +25,12 @@ export default defineConfig({
 		},
 		rollupOptions: {
 			external: ['monaco-editor'],
+			output: {
+				format: 'amd',
+				amd: {
+					id: 'my-bundle'
+				  }
+			  },
 			// output: {
 				// assetFileNames: ({name}) => {
 				// 	// fix css output path
@@ -46,7 +52,7 @@ export default defineConfig({
 			// },
 			{
 				find: '@',
-				replacement: path.resolve(__dirname, 'src'),
+				replacement: path.resolve(__dirname, './src'),
 			},
 		],
 	}

@@ -19,7 +19,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "dist": "rollup -c"
   },
   "peerDependencies": {
     "monaco-editor": "^0.39.0"
@@ -35,6 +36,7 @@
     "typescript": "^5.0.2",
     "vite": "^4.3.9",
     "vite-plugin-dts": "^3.5.0",
-    "vite-plugin-libcss": "^1.1.1"
+    "vite-plugin-libcss": "^1.1.1",
+    "rollup-plugin-import-css": "^3.4.0"
   }
 }

@@ -554,7 +554,7 @@ export default class MonacoBreakpoint {
 		return lineBreakInHead;
 	}
 
-	private emit<T extends keyof BreakpointEvents>(event: T, data: BreakpointEvents[T]) {
+	private emit<T extends keyof BreakpointEvents>(event: T, data: any) {
 		this.eventEmitter.emit(event, data);
 	}
 
