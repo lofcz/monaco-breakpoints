@@ -2,7 +2,7 @@ import * as monaco from 'monaco-editor';
 import MonacoBreakpoint from './core';
 import './style/index.css';
 import './style/global.css';
-import { BreakpointRemovedTypes } from './types';
+import { BreakpointRemovedTypes, MonacoBreakpointProps } from './types';
 
 const democode = [
 	'function foo() {\n',
@@ -36,7 +36,13 @@ const instance = new MonacoBreakpoint({
     },
     onBreakpointPlaced: (range) => {
         breakpointId++;
-        return breakpointId;
+        return {
+            id: breakpointId,
+            options: {
+                isWholeLine: true,
+                className: "monaco-breakpoint-line"
+            }
+        }
     },
     onBreakpointRemoved: (id, type) => {
         console.log(`breakpoint id ${id} removed, reason: ${type === BreakpointRemovedTypes.UserAction ? "user" : "line deleted"}`);

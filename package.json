@@ -17,10 +17,10 @@
     }
   },
   "scripts": {
-    "dev": "vite",
+    "dev": "vite -c vitedev.config.ts",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "dist": "rollup -c"
+    "dist": "tsc && vite build && rollup -c"
   },
   "peerDependencies": {
     "monaco-editor": "^0.39.0"
@@ -37,6 +37,8 @@
     "vite": "^4.3.9",
     "vite-plugin-dts": "^3.5.0",
     "vite-plugin-libcss": "^1.1.1",
-    "rollup-plugin-import-css": "^3.4.0"
+    "rollup-plugin-import-css": "^3.4.0",
+    "@rollup/plugin-terser": "^0.4.4",
+    "rollup-plugin-banner": "^0.2.1"
   }
 }

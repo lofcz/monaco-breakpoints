@@ -15,7 +15,8 @@ import {
 	BreakpointRequestPlacement,
 	BreakpointIdentifier,
 	BreakpointChangeInfo,
-	BreakpointRemovedTypes
+	BreakpointRemovedTypes,
+	BreakpointCreateInfo
 } from '../types';
 
 import {
@@ -92,7 +93,8 @@ export default class MonacoBreakpoint {
 					const newDecoration = this.createBreakpointDecoration(
 						range,
 						BreakpointEnum.Hover,
-						0
+						0,
+						{}
 					);
 					// render decoration
 					const decorationIds = model.deltaDecorations(
@@ -408,7 +410,7 @@ export default class MonacoBreakpoint {
 				}
 			}
 
-			var breakpointUserIndentifier : number = 0;
+			var breakpointUserIndentifier : BreakpointCreateInfo;
 
 			if (this.options?.onBreakpointPlaced) {
 				breakpointUserIndentifier = this.options.onBreakpointPlaced(range);
@@ -422,7 +424,8 @@ export default class MonacoBreakpoint {
 			const newDecoration = this.createBreakpointDecoration(
 				range,
 				BreakpointEnum.Exist,
-				breakpointUserIndentifier
+				breakpointUserIndentifier.id,
+				breakpointUserIndentifier.options || {}
 			);
 			// render decoration
 			const newDecorationId = model.deltaDecorations(
@@ -443,7 +446,7 @@ export default class MonacoBreakpoint {
 			if (decoration) {
 				this.decorationIdAndRangeMap.set(newDecorationId, decoration.range);
 				this.breakpointUserIdentifierMap.set(newDecorationId, {
-					userId: breakpointUserIndentifier,
+					userId: breakpointUserIndentifier.id,
 					internalId: newDecorationId,
 					range: range
 				});
@@ -454,14 +457,20 @@ export default class MonacoBreakpoint {
 	private createBreakpointDecoration(
 		range: Range,
 		breakpointEnum: BreakpointEnum,
-		userIdentifier: number
+		userIdentifier: number,
+		userOptions: object | null
 	): ModelDeltaDecoration {
+		var options = breakpointEnum === BreakpointEnum.Exist ? BREAKPOINT_OPTIONS : BREAKPOINT_HOVER_OPTIONS;
+
+		if (userOptions) {
+			for (const [key, value] of Object.entries(userOptions)) {
+				options[key] = value;
+			}
+		}
+
 		return {
 			range,
-			options:
-				breakpointEnum === BreakpointEnum.Exist
-					? BREAKPOINT_OPTIONS
-					: BREAKPOINT_HOVER_OPTIONS,
+			options: options
 		};
 	}
 

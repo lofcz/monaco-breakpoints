@@ -35,7 +35,7 @@ export enum BreakpointRemovedTypes {
 export interface MonacoBreakpointProps {
 	editor: MonacoEditor;
 	onRequestPlaceBreakpoint: (range: IRange, type: BreakpointRequestPlacement) => boolean;
-	onBreakpointPlaced: (range: IRange) => number;
+	onBreakpointPlaced: (range: IRange) => BreakpointCreateInfo;
 	onBreakpointRemoved: (breakpointId: number, type: BreakpointRemovedTypes) => void;
 }
 
@@ -54,4 +54,9 @@ export interface BreakpointIdentifier {
 export interface BreakpointChangeInfo {
 	userId: number | null;
 	lineNumber: number;
+}
+
+export interface BreakpointCreateInfo {
+	id: number | null;
+	options: MonacoBreakpointProps | object | null;
 }

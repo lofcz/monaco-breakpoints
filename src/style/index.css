@@ -19,3 +19,7 @@
 .monaco-line-highlight {
     background-color: rgba(245, 240, 187, 0.5);
 }
+
+.monaco-breakpoint-line {
+    background-color: #d47d7855;
+}
