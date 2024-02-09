@@ -6,7 +6,7 @@
     "url": "https://github.com/KamiC6238/monaco-breakpoints"
   },
   "license": "MIT",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -38,7 +38,6 @@
     "vite-plugin-dts": "^3.5.0",
     "vite-plugin-libcss": "^1.1.1",
     "rollup-plugin-import-css": "^3.4.0",
-    "@rollup/plugin-terser": "^0.4.4",
-    "rollup-plugin-banner": "^0.2.1"
+    "@rollup/plugin-terser": "^0.4.4"
   }
 }
