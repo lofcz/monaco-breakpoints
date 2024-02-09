@@ -11,7 +11,11 @@ import {
 	EditorMouseTarget,
 	ModelDeltaDecoration,
 	MonacoBreakpointProps,
-	CursorPositionChangedEvent
+	CursorPositionChangedEvent,
+	BreakpointRequestPlacement,
+	BreakpointIdentifier,
+	BreakpointChangeInfo,
+	BreakpointRemovedTypes
 } from '../types';
 
 import {
@@ -30,6 +34,7 @@ export default class MonacoBreakpoint {
 	private hoverDecorationId = '';
 	private highlightDecorationId = '';
 	private editor: MonacoEditor | null = null;
+	private options: MonacoBreakpointProps | null = null;
 	private eventEmitter = new EventEmitter();
 	
 	private isUndoing = false;
@@ -43,12 +48,14 @@ export default class MonacoBreakpoint {
 
 	private decorationIdAndRangeMap = new Map<string, Range>();
 	private lineNumberAndDecorationIdMap = new Map<number, string>();
+	private breakpointUserIdentifierMap = new Map<string, BreakpointIdentifier>();
 
 	constructor(params: MonacoBreakpointProps) {
 		if (!params?.editor) {
 			throw new Error("Missing 'editor' parameter");
 		}
 
+		this.options = params;
 		const { editor } = params;
 
 		this.editor = editor;
@@ -73,10 +80,19 @@ export default class MonacoBreakpoint {
 					// remove previous hover breakpoint decoration
 					this.removeHoverDecoration();
 
+					if (this.options?.onRequestPlaceBreakpoint) {
+						var allowPlacement: boolean = this.options.onRequestPlaceBreakpoint(range, BreakpointRequestPlacement.Hover);
+					
+						if (!allowPlacement) {
+							return;
+						}
+					}
+
 					// create new hover breakpoint decoration
 					const newDecoration = this.createBreakpointDecoration(
 						range,
-						BreakpointEnum.Hover
+						BreakpointEnum.Hover,
+						0
 					);
 					// render decoration
 					const decorationIds = model.deltaDecorations(
@@ -121,6 +137,23 @@ export default class MonacoBreakpoint {
 		);
 	}
 
+	private removeBreakpoint(decorationId: string, lineNumber: number | undefined, reason: BreakpointRemovedTypes) {
+
+		var a = this.decorationIdAndRangeMap.get(decorationId);
+
+		if (a !== undefined) {
+			this.removeSpecifyDecoration(decorationId, lineNumber || a.startLineNumber);
+		}
+	}
+
+	private removeBreakpointsOnLine(ln: number, reason: BreakpointRemovedTypes) {
+		for (var [lineNumber, decorationId] of this.lineNumberAndDecorationIdMap) {
+			if (lineNumber === ln) {
+				this.removeBreakpoint(decorationId, ln, reason);
+			}
+		}
+	}
+
 	private initEditorEvent() {
 		this.preLineCount = this.getLineCount();
 
@@ -132,6 +165,39 @@ export default class MonacoBreakpoint {
 			this.isUndoing = e.isUndoing;
 			this.isLineCountChanged = curLineCount !== this.preLineCount;
 			this.preLineCount = curLineCount;
+
+			var lineContent : string | undefined;
+
+			for (var change of e.changes) {
+				if (change.range.startLineNumber === change.range.endLineNumber) {
+					lineContent = this.getModel()?.getLineContent(change.range.startLineNumber);
+				
+					if (lineContent?.trim().length === 0) {
+						this.removeBreakpointsOnLine(change.range.startLineNumber, BreakpointRemovedTypes.LineDeleted);
+					}
+				}
+				else {
+					var newLines = change.text.split(e.eol);
+					var iter = 0;
+
+					for (var i : number = change.range.startLineNumber; i <= change.range.endLineNumber; i++) {
+						lineContent = "";
+						
+						if (i === change.range.startLineNumber) {
+							lineContent = (this.getModel()?.getLineContent(change.range.startLineNumber) || "") + (newLines.length > 0 ? newLines[0] : "");
+						}
+						else {
+							lineContent = newLines.length > iter ? newLines[iter] : "";
+						}
+
+						if (lineContent?.trim().length === 0) {
+							this.removeBreakpointsOnLine(change.range.startLineNumber + iter, BreakpointRemovedTypes.LineDeleted);
+						}
+
+						iter++;
+					}
+				}
+			}
 		});
 
 		// Execute onDidChangeCursorPosition callback second
@@ -190,6 +256,13 @@ export default class MonacoBreakpoint {
 				 * only need to update the record map (decorationIdAndRangeMap & lineNumberAndDecorationIdMap)
 				 */
 				for (let decoration of decorations) {
+
+					var bp = this.breakpointUserIdentifierMap.get(decoration.id);
+
+					if (bp) {
+						bp.range = decoration.range;
+					}
+
 					this.decorationIdAndRangeMap.set(decoration.id, decoration.range);
 				}
 			}
@@ -270,6 +343,12 @@ export default class MonacoBreakpoint {
 		const decorationsId = [];
 		const model = this.getModel();
 
+		for (var [_, bp] of this.breakpointUserIdentifierMap) {
+			if (this.options?.onBreakpointRemoved) {
+				this.options.onBreakpointRemoved(bp.userId, BreakpointRemovedTypes.UserAction);
+			}
+		}
+
 		for (let [_, decorationId] of this.lineNumberAndDecorationIdMap) {
 			decorationsId.push(decorationId);
 		}
@@ -294,9 +373,23 @@ export default class MonacoBreakpoint {
 		}
 	}
 
-	private removeSpecifyDecoration(decorationId: string, lineNumber: number) {
+	private getUserBreakpointIdentifier(decorationId: string) : number | undefined {
+		return this.breakpointUserIdentifierMap.get(decorationId)?.userId;
+	}
+
+	private removeSpecifyDecoration(decorationId: string, lineNumber: number, reason : BreakpointRemovedTypes = BreakpointRemovedTypes.UserAction) {
 		const model = this.getModel();
 		model?.deltaDecorations([decorationId], []);
+
+		if (this.options?.onBreakpointRemoved) {
+			var userId = this.getUserBreakpointIdentifier(decorationId);
+			
+			if (userId) {
+				this.options.onBreakpointRemoved(userId, reason);
+			}
+		}
+
+		this.breakpointUserIdentifierMap.delete(decorationId);
 		this.decorationIdAndRangeMap.delete(decorationId);
 		this.lineNumberAndDecorationIdMap.delete(lineNumber);
 		this.emitBreakpointChanged();
@@ -306,6 +399,21 @@ export default class MonacoBreakpoint {
 		const model = this.getModel();
 
 		if (model) {
+
+			if (this.options?.onRequestPlaceBreakpoint) {
+				var allowPlacement: boolean = this.options.onRequestPlaceBreakpoint(range, BreakpointRequestPlacement.Create);
+			
+				if (!allowPlacement) {
+					return;
+				}
+			}
+
+			var breakpointUserIndentifier : number = 0;
+
+			if (this.options?.onBreakpointPlaced) {
+				breakpointUserIndentifier = this.options.onBreakpointPlaced(range);
+			}
+
 			/**
 			 * If no breakpoint exists on the current line,
 			 * it indicates that the current action is to add a breakpoint.
@@ -313,7 +421,8 @@ export default class MonacoBreakpoint {
 			 */
 			const newDecoration = this.createBreakpointDecoration(
 				range,
-				BreakpointEnum.Exist
+				BreakpointEnum.Exist,
+				breakpointUserIndentifier
 			);
 			// render decoration
 			const newDecorationId = model.deltaDecorations(
@@ -333,13 +442,19 @@ export default class MonacoBreakpoint {
 
 			if (decoration) {
 				this.decorationIdAndRangeMap.set(newDecorationId, decoration.range);
+				this.breakpointUserIdentifierMap.set(newDecorationId, {
+					userId: breakpointUserIndentifier,
+					internalId: newDecorationId,
+					range: range
+				});
 			}
 		}
 	}
 
 	private createBreakpointDecoration(
 		range: Range,
-		breakpointEnum: BreakpointEnum
+		breakpointEnum: BreakpointEnum,
+		userIdentifier: number
 	): ModelDeltaDecoration {
 		return {
 			range,
@@ -354,9 +469,26 @@ export default class MonacoBreakpoint {
 		for (let [decorationId, range] of this.decorationIdAndRangeMap) {
 			// remove duplicated range in map
 			if (JSON.stringify(range) === JSON.stringify(decoration.range)) {
+
+				if (this.options?.onBreakpointRemoved) {
+					var userId = this.getUserBreakpointIdentifier(decorationId);
+					
+					if (userId) {
+						this.options.onBreakpointRemoved(userId, BreakpointRemovedTypes.UserAction);
+					}
+				}
+
+				this.breakpointUserIdentifierMap.delete(decorationId);
 				this.decorationIdAndRangeMap.delete(decorationId);
+				this.breakpointUserIdentifierMap.delete(decorationId);
 				break;
 			}
+		}
+		
+		var bp = this.breakpointUserIdentifierMap.get(decoration.id);
+		
+		if (bp) {
+			bp.range = decoration.range;
 		}
 		
 		this.decorationIdAndRangeMap.set(decoration.id, decoration.range);
@@ -427,7 +559,12 @@ export default class MonacoBreakpoint {
 	}
 
 	private emitBreakpointChanged() {
-		this.emit('breakpointChanged', this.getBreakpoints());
+
+		var bps = this.getBreakpoints();
+
+		if (bps.length > 0) {
+			this.emit('breakpointChanged', bps);
+		}
 	}
 
 	on<T extends keyof BreakpointEvents>(event: T, handler: Handler<BreakpointEvents[T]>) {
@@ -477,11 +614,20 @@ export default class MonacoBreakpoint {
 	 * @returns The set of line numbers where the breakpoint is located
 	 */
 	getBreakpoints() {
-		const breakpoints: number[] = [];
+		const breakpoints: BreakpointChangeInfo[] = [];
 
-		for (let [lineNumber, _] of this.lineNumberAndDecorationIdMap) {
-			breakpoints.push(lineNumber);
+		for (let [lineNumber, decorationId] of this.lineNumberAndDecorationIdMap) {
+
+			var userBreakpoint = this.breakpointUserIdentifierMap.get(decorationId);
+
+			if (userBreakpoint) {
+				breakpoints.push({
+					userId: userBreakpoint.userId,
+					lineNumber: lineNumber
+				});
+			}
 		}
+
 		return breakpoints;
 	}
 
@@ -491,6 +637,7 @@ export default class MonacoBreakpoint {
 	clearBreakpoints() {
 		this.removeAllDecorations();
 		this.decorationIdAndRangeMap.clear();
+		this.breakpointUserIdentifierMap.clear();
 		this.lineNumberAndDecorationIdMap.clear();
 	}
 
@@ -510,6 +657,7 @@ export default class MonacoBreakpoint {
 		this.cursorPositionChangedDisposable?.dispose();
 
 		this.decorationIdAndRangeMap.clear();
+		this.breakpointUserIdentifierMap.clear();
 		this.lineNumberAndDecorationIdMap.clear();
 	}
 }

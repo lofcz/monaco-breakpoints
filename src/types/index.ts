@@ -1,4 +1,5 @@
 import type * as monaco from 'monaco-editor';
+import { IRange } from 'monaco-editor';
 
 export type Range = monaco.IRange;
 export type Position = monaco.IPosition;
@@ -21,12 +22,36 @@ export enum BreakpointEnum {
 	Hover,
 }
 
+export enum BreakpointRequestPlacement {
+	Hover,
+	Create
+}
+
+export enum BreakpointRemovedTypes {
+	UserAction,
+	LineDeleted
+}
+
 export interface MonacoBreakpointProps {
 	editor: MonacoEditor;
+	onRequestPlaceBreakpoint: (range: IRange, type: BreakpointRequestPlacement) => boolean;
+	onBreakpointPlaced: (range: IRange) => number;
+	onBreakpointRemoved: (breakpointId: number, type: BreakpointRemovedTypes) => void;
 }
 
 export type Handler<T = any> = (data: T) => void;
 
 export interface BreakpointEvents {
 	breakpointChanged: number[];
+}
+
+export interface BreakpointIdentifier {
+	internalId: string;
+	userId: number;
+	range: IRange
+}
+
+export interface BreakpointChangeInfo {
+	userId: number | null;
+	lineNumber: number;
 }
